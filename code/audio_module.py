@@ -132,6 +132,7 @@ class AudioProcessor:
         elif engine == "orpheus":
             self.engine = OrpheusEngine(
                 model=self.orpheus_model,
+                llm_server_url="http://localhost:11434",
                 temperature=0.8,
                 top_p=0.95,
                 repetition_penalty=1.1,
