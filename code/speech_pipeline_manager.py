@@ -1,4 +1,5 @@
-# speech_pipeline_manager.py
+# Corrected code for: code/speech_pipeline_manager.py
+
 from typing import Optional, Callable
 import threading
 import logging
@@ -152,17 +153,14 @@ class SpeechPipelineManager:
             self.system_prompt += f"\n{orpheus_prompt_addon}"
 
         # --- Instance Dependencies ---
-        self.audio = AudioProcessor(
-            engine=self.tts_engine,
-            orpheus_model=self.orpheus_model
-        )
-        self.audio.on_first_audio_chunk_synthesize = self.on_first_audio_chunk_synthesize
+
+        # <-- CHANGE #1: INITIALIZE THE LLM OBJECT *FIRST* -->
         self.text_similarity = TextSimilarity(focus='end', n_words=5)
         self.text_context = TextContext()
         self.generation_counter: int = 0
         self.abort_lock = threading.Lock()
         self.llm = LLM(
-            backend=self.llm_provider, # Or your backend
+            backend=self.llm_provider,
             model=self.llm_model,
             system_prompt=self.system_prompt,
             no_think=no_think,
@@ -170,6 +168,14 @@ class SpeechPipelineManager:
         self.llm.prewarm()
         self.llm_inference_time = self.llm.measure_inference_time()
         logger.debug(f"🗣️🧠🕒 LLM inference time: {self.llm_inference_time:.2f}ms")
+
+        # <-- CHANGE #2: PASS THE LLM OBJECT TO THE AUDIO PROCESSOR -->
+        self.audio = AudioProcessor(
+            engine=self.tts_engine,
+            orpheus_model=self.orpheus_model,
+            llm=self.llm  # Pass the initialized LLM object
+        )
+        self.audio.on_first_audio_chunk_synthesize = self.on_first_audio_chunk_synthesize
 
         # --- State ---
         self.history = []
