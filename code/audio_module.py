@@ -1,5 +1,3 @@
-# Corrected code for: code/audio_module.py
-
 import asyncio
 import logging
 import os
@@ -82,7 +80,6 @@ class AudioProcessor:
             self,
             engine: str = START_ENGINE,
             orpheus_model: str = "orpheus-3b-0.1-ft-Q8_0-GGUF/orpheus-3b-0.1-ft-q8_0.gguf",
-            llm: Optional[object] = None, # <-- CHANGE #1: Accept an LLM object
         ) -> None:
         """
         Initializes the AudioProcessor with a specific TTS engine.
@@ -94,7 +91,6 @@ class AudioProcessor:
         Args:
             engine: The name of the TTS engine to use ("coqui", "kokoro", "orpheus").
             orpheus_model: The path or identifier for the Orpheus model file (used only if engine is "orpheus").
-            llm: An initialized LLM client object, required for Orpheus engine.
         """
         self.engine_name = engine
         self.stop_event = threading.Event()
@@ -134,12 +130,8 @@ class AudioProcessor:
                 fade_out_ms=10,
             )
         elif engine == "orpheus":
-            # <-- CHANGE #2: Pass the LLM object to OrpheusEngine
-            if llm is None:
-                raise ValueError("An initialized LLM object must be provided to AudioProcessor for the Orpheus engine.")
             self.engine = OrpheusEngine(
                 model=self.orpheus_model,
-                llm=llm, # Pass the object here
                 temperature=0.8,
                 top_p=0.95,
                 repetition_penalty=1.1,
@@ -237,7 +229,7 @@ class AudioProcessor:
     def synthesize(
             self,
             text: str,
-            audio_chunks: Queue,
+            audio_chunks: Queue, 
             stop_event: threading.Event,
             generation_string: str = "",
         ) -> bool:
