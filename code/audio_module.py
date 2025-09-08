@@ -139,12 +139,6 @@ class AudioProcessor:
             )
             voice = OrpheusVoice("tara")
             self.engine.set_voice(voice)
-        elif engine == "orpheus_server":
-            logger.info("Connecting to Orpheus TTS server on port 1234")
-            self.engine = OpenAIEngine(
-                model="orpheus-3b-0.1-ft",
-                base_url="http://127.0.0.1:1234/v1",
-            )
         else:
             raise ValueError(f"Unsupported engine: {engine}")
 
