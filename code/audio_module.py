@@ -1,3 +1,5 @@
+# Corrected and complete code for: code/audio_module.py
+
 import asyncio
 import logging
 import os
@@ -130,8 +132,10 @@ class AudioProcessor:
                 fade_out_ms=10,
             )
         elif engine == "orpheus":
+            # THIS IS THE ONLY CHANGE NEEDED
             self.engine = OrpheusEngine(
                 model=self.orpheus_model,
+                llm_server_url="http://127.0.0.1:11434",
                 temperature=0.8,
                 top_p=0.95,
                 repetition_penalty=1.1,
