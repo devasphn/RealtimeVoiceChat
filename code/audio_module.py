@@ -12,7 +12,7 @@ import numpy as np
 from huggingface_hub import hf_hub_download
 # Assuming RealtimeTTS is installed and available
 from RealtimeTTS import (CoquiEngine, KokoroEngine, OrpheusEngine,
-                         OrpheusVoice, TextToAudioStream)
+                         OrpheusVoice, TextToAudioStream,OpenAIEngine)
 
 logger = logging.getLogger(__name__)
 
@@ -139,6 +139,12 @@ class AudioProcessor:
             )
             voice = OrpheusVoice("tara")
             self.engine.set_voice(voice)
+        elif engine == "orpheus_server":
+            logger.info("Connecting to Orpheus TTS server on port 1234")
+            self.engine = OpenAIEngine(
+                model="orpheus-3b-0.1-ft",
+                base_url="http://127.0.0.1:1234/v1",
+            )
         else:
             raise ValueError(f"Unsupported engine: {engine}")
 
