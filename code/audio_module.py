@@ -17,7 +17,7 @@ from RealtimeTTS import (CoquiEngine, KokoroEngine, OrpheusEngine,
 logger = logging.getLogger(__name__)
 
 # Default configuration constants
-START_ENGINE = "kokoro"
+START_ENGINE = "orpheus"
 Silence = namedtuple("Silence", ("comma", "sentence", "default"))
 ENGINE_SILENCES = {
     "coqui":   Silence(comma=0.3, sentence=0.6, default=0.3),
@@ -137,7 +137,7 @@ class AudioProcessor:
                 repetition_penalty=1.1,
                 max_tokens=1200,
             )
-            voice = OrpheusVoice("tara")
+            voice = OrpheusVoice("ऋतिका")
             self.engine.set_voice(voice)
         else:
             raise ValueError(f"Unsupported engine: {engine}")
