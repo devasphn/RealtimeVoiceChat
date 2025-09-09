@@ -79,7 +79,7 @@ class AudioProcessor:
     def __init__(
             self,
             engine: str = START_ENGINE,
-            orpheus_model: str = "/workspace/models/orpheus/orpheus-3b-0.1-ft-Q8_0-GGUF/orpheus-3b-0.1-ft-q8_0.gguf",
+            orpheus_model: str = "/workspace/models/Orpheus-3b-FT-Q8_0.gguf",
         ) -> None:
         """
         Initializes the AudioProcessor with a specific TTS engine.
