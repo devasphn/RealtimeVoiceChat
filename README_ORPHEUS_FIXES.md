@@ -1,13 +1,13 @@
 # Orpheus TTS Server Startup Fixes
 
-## 🔍 Issues Identified and Fixed
+## 🔍 Critical Issues Identified and Fixed
 
 ### 1. **Shell Script Variable Substitution Error**
 **Problem**: Line 196 in `install_complete_dependencies.sh` used `${torch.__version__}` which is Python syntax, not bash.
 
 **Error**: `bad substitution` error in bash
 
-**Fix**: 
+**Fix**:
 ```bash
 # Before (broken):
 echo -e "   • PyTorch ${torch.__version__} with CUDA support"
@@ -17,22 +17,28 @@ TORCH_VERSION=$(python -c "import torch; print(torch.__version__)" 2>/dev/null |
 echo -e "   • PyTorch ${TORCH_VERSION} with CUDA support"
 ```
 
-### 2. **Orpheus Server Startup Timeout**
-**Problem**: Server was failing to start within 60-second timeout, especially for large 3GB model loading.
+### 2. **Missing Background Process (`&`) - CRITICAL**
+**Problem**: The llama-cpp-python server was running in the foreground, blocking the health check process.
 
-**Fix**: 
-- Increased timeout from 60 to 120 seconds
-- Added progress logging every 10 seconds
-- Improved error handling and diagnostics
+**Root Cause**: Server process was not detached, so the health check could never run while server was starting.
 
-### 3. **Insufficient Error Diagnostics**
-**Problem**: When server failed to start, there was minimal information about why.
+**Fix**:
+- Added `preexec_fn=os.setsid` to create new process group
+- Server now runs as detached background process
+- Health checks can run concurrently with server startup
 
-**Fix**: Added comprehensive error logging:
-- Port availability checking
-- Model file size validation
-- Detailed server output capture
-- Process monitoring with timestamps
+### 3. **Command Typo in Server Logs**
+**Problem**: Log showed `--n_gpu_lays -1` instead of `--n_gpu_layers -1`
+
+**Fix**: This was just a display issue in logs, actual command was correct.
+
+### 4. **Improved Port Detection Logic**
+**Problem**: If port 1234 was in use, assumed it was a conflict rather than our server.
+
+**Fix**:
+- If port is in use, assume it might be our server starting up
+- Wait and check for health responses
+- Only fail if port is occupied but not responding to our health checks
 
 ## 🔧 Files Modified
 
@@ -40,18 +46,25 @@ echo -e "   • PyTorch ${TORCH_VERSION} with CUDA support"
 - Fixed bash variable substitution error
 - Now properly gets PyTorch version for summary
 
-### 2. `code/orpheus_server_manager.py`
+### 2. `code/orpheus_server_manager.py` - MAJOR FIXES
+- **CRITICAL**: Added `preexec_fn=os.setsid` to run server as detached background process
+- Changed `check_port_available()` to `check_port_in_use()` with smarter logic
+- If port 1234 is in use, assume it's our server and wait for health check
 - Increased timeout from 60 to 120 seconds
-- Added `check_port_available()` method
 - Added `_get_model_size()` helper method
 - Enhanced error logging with detailed output
 - Added progress logging during startup
-- Better process monitoring
+- Better process monitoring with graceful fallback
 
 ### 3. `diagnose_orpheus_server.py` (New)
 - Comprehensive diagnostic tool
 - Tests all aspects of server startup
 - Helps identify specific failure points
+
+### 4. `test_orpheus_server.py` (New)
+- Independent server startup test
+- Runs server in background and tests health checks
+- Useful for debugging server issues separately
 
 ## 🚀 Updated Installation Process
 
@@ -62,8 +75,12 @@ chmod +x install_complete_dependencies.sh
 ./install_complete_dependencies.sh
 ```
 
-### Step 2: Diagnose Any Issues (Optional)
+### Step 2: Test Server Independently (Optional)
 ```bash
+# Test the server startup independently
+python test_orpheus_server.py
+
+# Or run full diagnostics
 python diagnose_orpheus_server.py
 ```
 
@@ -72,6 +89,8 @@ python diagnose_orpheus_server.py
 cd code
 python server.py
 ```
+
+**Note**: If you see the server taking a long time, that's normal for the 3.8GB model. The new logic will detect if port 1234 is in use and assume the server is working.
 
 ## 🔍 Diagnostic Features Added
 
