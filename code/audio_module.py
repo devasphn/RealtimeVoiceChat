@@ -4,15 +4,44 @@ import os
 import struct
 import threading
 import time
+import warnings
 from collections import namedtuple
 from queue import Queue
 from typing import Callable, Generator, Optional
 
 import numpy as np
 from huggingface_hub import hf_hub_download
+
+# Configure environment for container deployment
+os.environ['CUDA_VISIBLE_DEVICES'] = ''  # Force CPU-only mode
+
+# Suppress audio warnings
+warnings.filterwarnings('ignore', category=UserWarning, module='.*audio.*')
+warnings.filterwarnings('ignore', category=RuntimeWarning, module='.*alsa.*')
+
+# Import audio configuration
+try:
+    import sys
+    sys.path.append('..')
+    from audio_config import configure_audio_environment, get_safe_audio_config
+    configure_audio_environment()
+    logger.info("🔊 Audio environment configured for container deployment")
+except ImportError:
+    logger.warning("🔊 Audio config module not found, using default settings")
+
 # Assuming RealtimeTTS is installed and available
-from RealtimeTTS import (CoquiEngine, KokoroEngine, OrpheusEngine,
-                         OrpheusVoice, TextToAudioStream,OpenAIEngine)
+try:
+    from RealtimeTTS import (CoquiEngine, KokoroEngine, OrpheusEngine,
+                             OrpheusVoice, TextToAudioStream, OpenAIEngine)
+except ImportError as e:
+    logger.error(f"🔊 Failed to import RealtimeTTS: {e}")
+    # Create dummy classes to prevent import errors
+    class CoquiEngine: pass
+    class KokoroEngine: pass
+    class OrpheusEngine: pass
+    class OrpheusVoice: pass
+    class TextToAudioStream: pass
+    class OpenAIEngine: pass
 
 logger = logging.getLogger(__name__)
 

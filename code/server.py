@@ -1,8 +1,26 @@
 # server.py
 from queue import Queue, Empty
 import logging
+import os
+import warnings
+
+# Configure environment for container deployment
+os.environ['CUDA_VISIBLE_DEVICES'] = ''  # Force CPU-only mode
+
+# Suppress audio warnings early
+warnings.filterwarnings('ignore', category=UserWarning, module='.*audio.*')
+warnings.filterwarnings('ignore', category=RuntimeWarning, module='.*alsa.*')
+
 from logsetup import setup_logging
 setup_logging(logging.INFO)
+
+# Configure audio environment
+try:
+    from audio_config import configure_audio_environment
+    configure_audio_environment()
+    logging.getLogger(__name__).info("🔊 Audio environment configured for container deployment")
+except ImportError:
+    logging.getLogger(__name__).warning("🔊 Audio config module not found, using default settings")
 logger = logging.getLogger(__name__)
 if __name__ == "__main__":
     logger.info("🖥️👋 Welcome to local real-time voice chat")

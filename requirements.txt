@@ -1,7 +1,7 @@
-# Core ML and Scientific Computing Libraries
-torch==2.5.1+cu121
-torchaudio==2.5.1+cu121
-torchvision==0.20.1
+# Core ML and Scientific Computing Libraries (CPU-only for container compatibility)
+torch==2.5.1+cpu
+torchaudio==2.5.1+cpu
+torchvision==0.20.1+cpu
 numpy
 scipy
 transformers

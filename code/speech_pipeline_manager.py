@@ -237,6 +237,73 @@ class SpeechPipelineManager:
 
         logger.info("🗣️🚀 SpeechPipelineManager initialized and workers started.")
 
+    def cleanup_resources(self) -> None:
+        """
+        Clean up all resources to prevent memory leaks.
+        This method should be called when shutting down the application.
+        """
+        try:
+            logger.info("🗣️🧹 Cleaning up SpeechPipelineManager resources...")
+
+            # Clean up audio input processor
+            if hasattr(self, 'audio_input') and self.audio_input:
+                try:
+                    if hasattr(self.audio_input, 'cleanup_resources'):
+                        self.audio_input.cleanup_resources()
+                    if hasattr(self.audio_input, 'transcriber') and self.audio_input.transcriber:
+                        if hasattr(self.audio_input.transcriber, 'cleanup_resources'):
+                            self.audio_input.transcriber.cleanup_resources()
+                except Exception as e:
+                    logger.warning(f"🗣️⚠️ Error cleaning up audio input: {e}")
+
+            # Clean up audio processor
+            if hasattr(self, 'audio') and self.audio:
+                try:
+                    if hasattr(self.audio, 'cleanup_resources'):
+                        self.audio.cleanup_resources()
+                except Exception as e:
+                    logger.warning(f"🗣️⚠️ Error cleaning up audio processor: {e}")
+
+            # Clean up LLM
+            if hasattr(self, 'llm') and self.llm:
+                try:
+                    if hasattr(self.llm, 'cleanup_resources'):
+                        self.llm.cleanup_resources()
+                except Exception as e:
+                    logger.warning(f"🗣️⚠️ Error cleaning up LLM: {e}")
+
+            # Clean up Orpheus server manager
+            if hasattr(self, 'orpheus_server_manager') and self.orpheus_server_manager:
+                try:
+                    if hasattr(self.orpheus_server_manager, 'stop_server'):
+                        self.orpheus_server_manager.stop_server()
+                except Exception as e:
+                    logger.warning(f"🗣️⚠️ Error stopping Orpheus server: {e}")
+
+            # Clear queues
+            if hasattr(self, 'requests_queue'):
+                try:
+                    while not self.requests_queue.empty():
+                        self.requests_queue.get_nowait()
+                except Exception:
+                    pass
+
+            # Force garbage collection
+            import gc
+            gc.collect()
+
+            logger.info("🗣️✅ SpeechPipelineManager cleanup completed")
+
+        except Exception as e:
+            logger.error(f"🗣️💥 Error during SpeechPipelineManager cleanup: {e}")
+
+    def __del__(self):
+        """Destructor to ensure cleanup when object is garbage collected."""
+        try:
+            self.cleanup_resources()
+        except Exception:
+            pass  # Ignore errors in destructor
+
     def is_valid_gen(self) -> bool:
         """
         Checks if there is a currently running generation that has not started aborting.

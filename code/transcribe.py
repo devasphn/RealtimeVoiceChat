@@ -14,16 +14,43 @@ import json
 import copy
 import time
 import re
+import os
+import warnings
 from typing import Optional, Callable, Any, Dict, List
+
+# Configure PyTorch for CPU-only mode to avoid CUDA issues
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
+torch.set_num_threads(1)  # Limit threads to reduce memory usage
+
+# Force CPU-only mode for PyTorch
+if torch.cuda.is_available():
+    logger.warning("🚀 CUDA detected but forcing CPU-only mode for container compatibility")
+torch.backends.cudnn.enabled = False
+
+# Suppress audio-related warnings
+warnings.filterwarnings('ignore', category=UserWarning, module='.*audio.*')
+warnings.filterwarnings('ignore', category=RuntimeWarning, module='.*alsa.*')
+
+# Import audio configuration
+try:
+    import sys
+    sys.path.append('..')
+    from audio_config import configure_audio_environment, get_safe_audio_config
+    configure_audio_environment()
+    logger.info("🔊 Audio environment configured for container deployment")
+except ImportError:
+    logger.warning("🔊 Audio config module not found, using default settings")
+    def get_safe_audio_config():
+        return {'use_microphone': False}
 
 # --- Configuration Flags ---
 USE_TURN_DETECTION = True
 START_STT_SERVER = False # Set to True to use the client/server version of RealtimeSTT
 
 # --- Recorder Configuration (Moved here for clarity, can be externalized) ---
-# Default config if none provided to constructor
+# Default config if none provided to constructor - optimized for container environments
 DEFAULT_RECORDER_CONFIG: Dict[str, Any] = {
-    "use_microphone": False,
+    "use_microphone": False,  # Disable microphone for WebSocket audio input
     "spinner": False,
     "model": "base.en",
     "realtime_model_type": "base.en",
@@ -42,13 +69,19 @@ DEFAULT_RECORDER_CONFIG: Dict[str, Any] = {
     "beam_size": 3,
     "beam_size_realtime": 3,
     "no_log_file": True,
-    "wake_words": "jarvis",
+    "wake_words": "",  # Disable wake words for container deployment
     "wakeword_backend": "pvporcupine",
     "allowed_latency_limit": 500,
     # Callbacks will be added dynamically in _create_recorder
-    "debug_mode": True,
+    "debug_mode": False,  # Reduce debug output
     "initial_prompt_realtime": "The sky is blue. When the sky... She walked home. Because he... Today is sunny. If only I...",
     "faster_whisper_vad_filter": False,
+    # Container-specific audio settings
+    "input_device_index": None,  # Use default (null) device
+    "output_device_index": None,  # Use default (null) device
+    "use_audio_enhancement": False,  # Disable audio enhancement to reduce CPU load
+    "device": "cpu",  # Force CPU-only processing
+    "compute_type": "int8",  # Use int8 for faster CPU inference
 }
 
 
@@ -805,6 +838,67 @@ class TranscriptionProcessor:
         elif self.shutdown_performed:
             logger.debug("👂🚫 Cannot feed audio: Shutdown already performed.")
         # No warning if shutdown_performed is True, as expected
+
+    def cleanup_resources(self) -> None:
+        """
+        Clean up resources to prevent memory leaks, especially semaphore objects.
+        This method should be called when the transcription processor is no longer needed.
+        """
+        try:
+            logger.info("👂🧹 Cleaning up transcription processor resources...")
+
+            # Stop and cleanup recorder
+            if self.recorder:
+                try:
+                    if hasattr(self.recorder, 'stop'):
+                        self.recorder.stop()
+                    if hasattr(self.recorder, 'shutdown'):
+                        self.recorder.shutdown()
+                    if hasattr(self.recorder, 'cleanup'):
+                        self.recorder.cleanup()
+                except Exception as e:
+                    logger.warning(f"👂⚠️ Error during recorder cleanup: {e}")
+                finally:
+                    self.recorder = None
+
+            # Stop silence monitor
+            if hasattr(self, 'silence_monitor_thread') and self.silence_monitor_thread:
+                try:
+                    if hasattr(self.silence_monitor_thread, 'stop'):
+                        self.silence_monitor_thread.stop()
+                    self.silence_monitor_thread = None
+                except Exception as e:
+                    logger.warning(f"👂⚠️ Error stopping silence monitor: {e}")
+
+            # Clean up turn detection
+            if hasattr(self, 'turn_detection') and self.turn_detection:
+                try:
+                    if hasattr(self.turn_detection, 'cleanup'):
+                        self.turn_detection.cleanup()
+                    self.turn_detection = None
+                except Exception as e:
+                    logger.warning(f"👂⚠️ Error cleaning up turn detection: {e}")
+
+            # Clear caches and lists
+            self.sentence_end_cache.clear()
+            self.potential_sentences_yielded.clear()
+
+            # Force garbage collection to clean up any remaining objects
+            import gc
+            gc.collect()
+
+            logger.info("👂✅ Transcription processor cleanup completed")
+
+        except Exception as e:
+            logger.error(f"👂💥 Error during resource cleanup: {e}")
+
+    def __del__(self):
+        """Destructor to ensure cleanup when object is garbage collected."""
+        try:
+            if not self.shutdown_performed:
+                self.cleanup_resources()
+        except Exception:
+            pass  # Ignore errors in destructor
 
     def shutdown(self) -> None:
         """
