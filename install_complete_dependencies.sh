@@ -190,10 +190,13 @@ import requests
 print('✅ Web server dependencies: OK')
 "
 
+# Get PyTorch version for summary
+TORCH_VERSION=$(python -c "import torch; print(torch.__version__)" 2>/dev/null || echo "unknown")
+
 echo -e "${GREEN}🎉 Complete dependency installation finished successfully!${NC}"
 echo -e "${BLUE}📝 Installation Summary:${NC}"
 echo -e "   • System audio dependencies installed"
-echo -e "   • PyTorch ${torch.__version__} with CUDA support"
+echo -e "   • PyTorch ${TORCH_VERSION} with CUDA support"
 echo -e "   • llama-cpp-python[server] with CUDA support"
 echo -e "   • All scientific computing libraries (numpy, scipy, transformers)"
 echo -e "   • Speech processing libraries (RealtimeSTT, RealtimeTTS)"

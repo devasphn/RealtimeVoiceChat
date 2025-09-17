@@ -29,7 +29,7 @@ class OrpheusServerManager:
         host: str = "0.0.0.0",
         port: int = 1234,
         n_gpu_layers: int = -1,
-        timeout: int = 60
+        timeout: int = 120
     ):
         """
         Initialize the Orpheus server manager.
@@ -57,8 +57,35 @@ class OrpheusServerManager:
         try:
             response = requests.get(f"{self.server_url}/health", timeout=5)
             return response.status_code == 200
-        except requests.exceptions.RequestException:
+        except requests.exceptions.RequestException as e:
+            logger.debug(f"🎤🔍 Server health check failed: {e}")
             return False
+
+    def check_port_available(self) -> bool:
+        """Check if the port is available for use."""
+        import socket
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.settimeout(1)
+                result = sock.connect_ex((self.host, self.port))
+                if result == 0:
+                    logger.warning(f"🎤⚠️ Port {self.port} is already in use")
+                    return False
+                return True
+        except Exception as e:
+            logger.error(f"🎤❌ Error checking port availability: {e}")
+            return False
+
+    def _get_model_size(self) -> str:
+        """Get the size of the model file for logging."""
+        try:
+            if os.path.exists(self.model_path):
+                size_bytes = os.path.getsize(self.model_path)
+                size_gb = size_bytes / (1024**3)
+                return f"{size_gb:.1f} GB"
+            return "unknown"
+        except Exception:
+            return "unknown"
     
     def ensure_model_exists(self) -> bool:
         """Ensure the Orpheus model file exists."""
@@ -117,14 +144,22 @@ class OrpheusServerManager:
         if self.is_server_running():
             logger.info(f"🎤✅ Orpheus server already running at {self.server_url}")
             return True
-        
+
         if not self.ensure_model_exists():
             return False
-        
+
         if not self.install_llama_cpp_python():
             return False
-        
+
+        # Check if port is available
+        if not self.check_port_available():
+            logger.error(f"🎤❌ Port {self.port} is not available. Please check for conflicting processes.")
+            logger.info(f"🎤💡 Try: lsof -ti:{self.port} | xargs kill -9")
+            return False
+
         logger.info(f"🎤🚀 Starting Orpheus server at {self.server_url}...")
+        logger.info(f"🎤📊 Model size: {self._get_model_size()}")
+        logger.info(f"🎤⏱️ Timeout: {self.timeout} seconds")
         
         try:
             # Start the llama-cpp-python server
@@ -147,20 +182,44 @@ class OrpheusServerManager:
             
             # Wait for server to start
             start_time = time.time()
+            check_interval = 2
+            last_log_time = start_time
+
             while time.time() - start_time < self.timeout:
+                current_time = time.time()
+                elapsed = current_time - start_time
+
+                # Log progress every 10 seconds
+                if current_time - last_log_time >= 10:
+                    logger.info(f"🎤⏳ Waiting for Orpheus server startup... ({elapsed:.0f}s/{self.timeout}s)")
+                    last_log_time = current_time
+
                 if self.is_server_running():
-                    logger.info(f"🎤✅ Orpheus server started successfully at {self.server_url}")
+                    logger.info(f"🎤✅ Orpheus server started successfully at {self.server_url} (took {elapsed:.1f}s)")
                     return True
-                
+
                 # Check if process died
                 if self.server_process.poll() is not None:
                     stdout, stderr = self.server_process.communicate()
-                    logger.error(f"🎤❌ Server process died. stdout: {stdout}, stderr: {stderr}")
+                    logger.error(f"🎤❌ Server process died after {elapsed:.1f}s")
+                    logger.error(f"🎤📤 stdout: {stdout}")
+                    logger.error(f"🎤📤 stderr: {stderr}")
                     return False
-                
-                time.sleep(2)
-            
+
+                time.sleep(check_interval)
+
+            # Timeout reached - get process output for debugging
             logger.error(f"🎤❌ Server failed to start within {self.timeout} seconds")
+            if self.server_process and self.server_process.poll() is None:
+                logger.info("🎤🔍 Server process still running, attempting to get output...")
+                try:
+                    # Give it a moment to produce output
+                    stdout, stderr = self.server_process.communicate(timeout=5)
+                    logger.error(f"🎤📤 Server stdout: {stdout}")
+                    logger.error(f"🎤📤 Server stderr: {stderr}")
+                except subprocess.TimeoutExpired:
+                    logger.warning("🎤⏰ Could not get server output within timeout")
+
             self.stop_server()
             return False
             
