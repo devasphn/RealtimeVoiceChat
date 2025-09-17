@@ -2,6 +2,9 @@
 realtimestt==0.3.104
 realtimetts[kokoro,coqui,orpheus]==0.5.7
 
+# llama-cpp-python server for Orpheus TTS
+llama-cpp-python[server]
+
 # webserver dependencies
 fastapi
 uvicorn
@@ -12,3 +15,6 @@ python-dotenv
 # llm providers
 ollama
 openai
+
+# additional dependencies for server management
+requests

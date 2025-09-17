@@ -12,6 +12,7 @@ from text_similarity import TextSimilarity
 from text_context import TextContext
 from llm_module import LLM
 from colors import Colors
+from orpheus_server_manager import OrpheusServerManager
 
 # (Logging setup)
 logger = logging.getLogger(__name__)
@@ -146,10 +147,26 @@ class SpeechPipelineManager:
         self.llm_model = llm_model
         self.no_think = no_think
         self.orpheus_model = orpheus_model
+        self.orpheus_server_manager = None
 
         self.system_prompt = system_prompt
         if tts_engine == "orpheus":
             self.system_prompt += f"\n{orpheus_prompt_addon}"
+
+            # Initialize and start Orpheus server if using Orpheus TTS
+            logger.info("🎤🚀 Initializing Orpheus server for TTS...")
+            self.orpheus_server_manager = OrpheusServerManager(
+                model_path=self.orpheus_model,
+                host="0.0.0.0",
+                port=1234,
+                n_gpu_layers=-1
+            )
+
+            if not self.orpheus_server_manager.start_server():
+                logger.error("🎤❌ Failed to start Orpheus server. TTS may not work properly.")
+                raise RuntimeError("Failed to initialize Orpheus server for TTS")
+
+            logger.info("🎤✅ Orpheus server initialized successfully")
 
         # --- Instance Dependencies ---
         self.audio = AudioProcessor(
@@ -1100,5 +1117,10 @@ class SpeechPipelineManager:
              else:
                   logger.info(f"🗣️🔌👍 {name} thread already finished.")
 
+
+        # Stop Orpheus server if it was started
+        if self.orpheus_server_manager:
+            logger.info("🎤🛑 Stopping Orpheus server...")
+            self.orpheus_server_manager.stop_server()
 
         logger.info("🗣️🔌✅ Shutdown complete.")
