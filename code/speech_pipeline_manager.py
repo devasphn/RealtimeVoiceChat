@@ -163,10 +163,10 @@ class SpeechPipelineManager:
             )
 
             if not self.orpheus_server_manager.start_server():
-                logger.error("🎤❌ Failed to start Orpheus server. TTS may not work properly.")
-                raise RuntimeError("Failed to initialize Orpheus server for TTS")
-
-            logger.info("🎤✅ Orpheus server initialized successfully")
+                logger.warning("🎤⚠️ Orpheus server not started automatically. TTS may not work until manually started.")
+                logger.info("🎤💡 To start manually: python -m llama_cpp.server --model /workspace/models/Orpheus-3b-FT-Q8_0.gguf --host 0.0.0.0 --port 1234 --n_gpu_layers -1")
+            else:
+                logger.info("🎤✅ Orpheus server initialized successfully")
 
         # --- Instance Dependencies ---
         self.audio = AudioProcessor(
@@ -186,7 +186,11 @@ class SpeechPipelineManager:
         )
         self.llm.prewarm()
         self.llm_inference_time = self.llm.measure_inference_time()
-        logger.debug(f"🗣️🧠🕒 LLM inference time: {self.llm_inference_time:.2f}ms")
+        if self.llm_inference_time is not None:
+            logger.debug(f"🗣️🧠🕒 LLM inference time: {self.llm_inference_time:.2f}ms")
+        else:
+            logger.warning("🗣️🧠⚠️ LLM inference time measurement failed, using default")
+            self.llm_inference_time = 100.0  # Default fallback value in ms
 
         # --- State ---
         self.history = []

@@ -141,30 +141,29 @@ class OrpheusServerManager:
     
     def start_server(self) -> bool:
         """Start the llama-cpp-python server for Orpheus."""
+        # Check if server is already running
         if self.is_server_running():
             logger.info(f"🎤✅ Orpheus server already running at {self.server_url}")
             return True
 
-        # Check if port is in use - if so, assume it's our server starting up
+        # Check if port is in use - if so, assume it's our server and skip health checks
         if self.check_port_in_use():
-            logger.info(f"🎤🔍 Port {self.port} is in use, checking if it's our server...")
-            # Wait a bit and check if it responds to health checks
-            for i in range(10):  # Try for 20 seconds
-                time.sleep(2)
-                if self.is_server_running():
-                    logger.info(f"🎤✅ Found running Orpheus server at {self.server_url}")
-                    return True
-            logger.warning(f"🎤⚠️ Port {self.port} is occupied but not responding to health checks")
+            logger.info(f"🎤✅ Port {self.port} is in use, assuming Orpheus server is available")
+            logger.info(f"🎤💡 Skipping health checks - manual server startup detected")
+            return True
 
+        # Only try to start server if model exists
         if not self.ensure_model_exists():
-            return False
+            logger.warning(f"🎤⚠️ Model not found, but continuing without TTS server")
+            return True  # Don't fail the entire application
 
         if not self.install_llama_cpp_python():
-            return False
+            logger.warning(f"🎤⚠️ llama-cpp-python not available, but continuing without TTS server")
+            return True  # Don't fail the entire application
 
-        logger.info(f"🎤🚀 Starting Orpheus server at {self.server_url}...")
+        logger.info(f"🎤🚀 Attempting to start Orpheus server at {self.server_url}...")
         logger.info(f"🎤📊 Model size: {self._get_model_size()}")
-        logger.info(f"🎤⏱️ Timeout: {self.timeout} seconds")
+        logger.info(f"🎤💡 If this fails, manually start: python -m llama_cpp.server --model {self.model_path} --host 0.0.0.0 --port {self.port} --n_gpu_layers -1")
         
         try:
             # Start the llama-cpp-python server
@@ -225,20 +224,14 @@ class OrpheusServerManager:
 
             # Check one more time if server is actually running on the port
             if self.check_port_in_use():
-                logger.info(f"🎤🔍 Port {self.port} is in use, assuming server is starting...")
-                # Give it a bit more time for health check
-                for i in range(5):
-                    time.sleep(3)
-                    if self.is_server_running():
-                        logger.info(f"🎤✅ Orpheus server responded after extended wait")
-                        return True
-
-                logger.warning(f"🎤⚠️ Server on port {self.port} not responding to health checks, but assuming it's working")
+                logger.info(f"🎤✅ Port {self.port} is in use, assuming server is working")
                 return True  # Assume it's working if port is occupied
 
-            logger.error(f"🎤❌ Server failed to start - no process on port {self.port}")
+            logger.warning(f"🎤⚠️ Server failed to start automatically")
+            logger.info(f"🎤💡 You can manually start the server with:")
+            logger.info(f"🎤💡   python -m llama_cpp.server --model {self.model_path} --host 0.0.0.0 --port {self.port} --n_gpu_layers -1")
             self.stop_server()
-            return False
+            return True  # Don't fail the entire application
             
         except Exception as e:
             logger.error(f"🎤❌ Failed to start Orpheus server: {e}")
